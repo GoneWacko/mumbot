@@ -1,17 +1,24 @@
-class TopicPlugin:
-    base_msg = "<p><b>GoneWacko's Mumble Server.</b></p><p>mumble.gwko.nl, port 64738</p>"
+from Plugin import Plugin
+from HTMLParser import HTMLParser
+
+class TopicPlugin(Plugin):
     def __init__(self, server, adapter):
         self.server = server
         self.adapter = adapter
+        self.htmlparser = HTMLParser()
 
     def add_topic(self, user, text):
-        wt = server.getConf('welcometext')
-        wt += '<hr class="topic"><div class="%s topic">%s</div>' % (user.name, text)
+        if len(text) == 0 or text.isspace():
+            return
+        wt = self.server.getConf('welcometext')
+        wt += '<hr class="topic"><div class="%s topic">%s</div>' % (user.name, self.htmlparser.unescape(text))
         print wt
-        #server.setConf('welcometext', wt)
+        self.server.setConf('welcometext', wt)
 
     def del_topic(self, fragment):
-        wt = server.getConf('welcomtext')
+        if len(fragment) == 0 or fragment.isspace():
+            return
+        wt = self.server.getConf('welcometext')
         topics = wt.split('<hr class="topic">')
         for t in list(topics[1:]):
             if fragment in t:
@@ -19,11 +26,11 @@ class TopicPlugin:
                 break
         wt = '<hr class="topic">'.join(topics)
         print wt
-        #server.setConf('welcometext', wt)
+        self.server.setConf('welcometext', wt)
 
     def userTextMessage(self, user, msg, current=None):
         if msg.text.startswith("!addtopic"):
-            add_topic(user, msg.text[9:])
+            self.add_topic(user, msg.text[10:])
         elif msg.text.startswith("!deltopic"):
-            del_topic(user, msg.text[9:])
+            self.del_topic(msg.text[10:])
 
