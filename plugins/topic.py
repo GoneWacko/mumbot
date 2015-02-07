@@ -13,9 +13,9 @@ class TopicPlugin(Plugin):
         if len(text) == 0 or text.isspace():
             return
         wt = self.server.getConf('welcometext')
-        stripper.reset()
-        stripper.feed(text) # Remove the <a> tags that were added by Mumble
-        text = stripper.get_data()
+        self.stripper.reset()
+        self.stripper.feed(text) # Remove the <a> tags that were added by Mumble
+        text = self.stripper.get_data()
         wt += '<hr class="topic"><div class="%s topic">%s</div>' % (user.name, self.htmlparser.unescape(text))
         self.server.setConf('welcometext', wt)
 
