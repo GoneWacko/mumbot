@@ -1,3 +1,6 @@
+import Murmur
+import Ice
+
 plugins = []
 
 class Mumbot(Murmur.ServerCallback):
@@ -64,9 +67,11 @@ if __name__ == "__main__":
 
     # Load plugins
     from plugins.youtube import YouTubePlugin
-    plugins.add(YouTubePlugin(server, adapter))
+    plugins.append(YouTubePlugin(server, adapter))
 
     # And now we wait.
+    import time
+    import sys
     while True:
         try:
             time.sleep(5)
