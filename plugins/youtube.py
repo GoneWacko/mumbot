@@ -2,15 +2,12 @@ import re
 import urlparse
 import urllib2
 import xml.etree.ElementTree as ET
-import Ice
-import Murmur
+
+from . import Plugin
 
 href_re = 'href="([^"]*)"'
 
-class YoutubeBotCallback(Murmur.ServerCallback):
-    def __init__(self, server, adapter):
-        self.server = server
-        self.adapter = adapter
+class YouTubePlugin(Plugin):
 
     def get_ids(self, message):
         ids = set()
@@ -25,7 +22,7 @@ class YoutubeBotCallback(Murmur.ServerCallback):
             elif res.netloc in ['www.youtu.be', 'youtu.be']:
                 i = re.match('^/(?P<vid>.*)', res.path).group('vid')
             if i is not None:
-                ids.add(i)
+                ids.add((i, uri))
         return ids
 
     def get_title(self, vid):
@@ -68,9 +65,8 @@ class YoutubeBotCallback(Murmur.ServerCallback):
             video['error'] = response.read()
         return video
 
-    def process(self, message, vid):
+    def process(self, message, vid, url):
         video = self.get_title(vid)
-	url = "http://youtu.be/%s" % (vid)
         if 'error' in video:
             for c in message.channels:
                 self.server.sendMessageChannel(c, False, video['error'])
@@ -82,48 +78,5 @@ class YoutubeBotCallback(Murmur.ServerCallback):
                 self.server.sendMessageChannel(c, False, text)
 
     def userTextMessage(self, user, message, current=None):
-        for i in self.get_ids(message.text):
-            self.process(message, i)
-
-def make_cb(comm, server):
-    adapter = comm.createObjectAdapterWithEndpoints("Callback.Client", "tcp -h 127.0.0.1")
-    adapter.activate()
-    cb = Murmur.ServerCallbackPrx.uncheckedCast(adapter.addWithUUID(YoutubeBotCallback(server, adapter)))
-    return cb
-
-if __name__ == "__main__":
-    import time
-    import sys
-    import os
-
-    try:
-        pid = os.fork()
-    except OSerror, e:
-        raise Exception, "%s [%d]" % (e.strerror, e.errno)
-    
-    if pid == 0:
-        os.setsid()
-        try:
-            pid = os.fork()
-        except OSError, e:
-            raise Exception, "%s [%d]" % (e.strerror, e.errno)
-        if pid == 0:
-            os.chdir("/")
-            os.umask(0)
-        else:
-            os._exit(0)
-    else:
-        os._exit(0)
-
-    comm = Ice.initialize()
-    proxy = comm.stringToProxy("Meta:tcp -p 6502")
-    meta = Murmur.MetaPrx.checkedCast(proxy)
-    server = meta.getServer(1)
-
-    cb = make_cb(comm,server)
-    server.addCallback(cb)
-    while True:
-        try:
-            time.sleep(3)
-        except KeyboardInterrupt:
-            sys.exit(0)
+        for i, uri in self.get_ids(message.text):
+            self.process(message, i, uri)
