@@ -3,11 +3,15 @@ import urlparse
 import urllib2
 import xml.etree.ElementTree as ET
 
-from . import Plugin
+from Plugin import Plugin
 
 href_re = 'href="([^"]*)"'
 
 class YouTubePlugin(Plugin):
+
+    def __init__(self, server, adapter):
+        self.server = server
+        self.adapter = adapter
 
     def get_ids(self, message):
         ids = set()
