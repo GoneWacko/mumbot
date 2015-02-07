@@ -51,7 +51,11 @@ def daemonize():
         os._exit(0)
 
 if __name__ == "__main__":
-    # daemonize()
+    import sys
+    if len(sys.argv) > 1:
+        for arg in sys.argv:
+            if arg == '-d':
+                daemonize()
 
     # Set up ICE. No clue how it works, so hands off.
     comm = Ice.initialize()
@@ -71,7 +75,6 @@ if __name__ == "__main__":
 
     # And now we wait.
     import time
-    import sys
     while True:
         try:
             time.sleep(5)
