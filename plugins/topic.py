@@ -1,4 +1,5 @@
 from Plugin import Plugin
+from lib.htmlstripper import HTMLStripper
 from HTMLParser import HTMLParser
 
 class TopicPlugin(Plugin):
@@ -6,13 +7,16 @@ class TopicPlugin(Plugin):
         self.server = server
         self.adapter = adapter
         self.htmlparser = HTMLParser()
+        self.stripper = HTMLStripper()
 
     def add_topic(self, user, text):
         if len(text) == 0 or text.isspace():
             return
         wt = self.server.getConf('welcometext')
+        stripper.reset()
+        stripper.feed(text) # Remove the <a> tags that were added by Mumble
+        text = stripper.get_data()
         wt += '<hr class="topic"><div class="%s topic">%s</div>' % (user.name, self.htmlparser.unescape(text))
-        print wt
         self.server.setConf('welcometext', wt)
 
     def del_topic(self, fragment):
@@ -25,7 +29,6 @@ class TopicPlugin(Plugin):
                 topics.remove(t)
                 break
         wt = '<hr class="topic">'.join(topics)
-        print wt
         self.server.setConf('welcometext', wt)
 
     def userTextMessage(self, user, msg, current=None):
