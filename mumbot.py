@@ -71,7 +71,9 @@ if __name__ == "__main__":
 
     # Load plugins
     from plugins.youtube import YouTubePlugin
+    from plugins.topic import TopicPlugin
     plugins.append(YouTubePlugin(server, adapter))
+    plugins.append(TopicPlugin(server, adapter))
 
     # And now we wait.
     import time
