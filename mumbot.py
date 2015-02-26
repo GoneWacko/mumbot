@@ -71,8 +71,10 @@ if __name__ == "__main__":
 
     # Load plugins
     from plugins.youtube import YouTubePlugin
+    from plugins.twitch import TwitchPlugin
     from plugins.topic import TopicPlugin
     plugins.append(YouTubePlugin(server, adapter))
+    plugins.append(TwitchPlugin(server, adapter))
     plugins.append(TopicPlugin(server, adapter))
 
     # And now we wait.
