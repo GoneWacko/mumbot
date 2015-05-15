@@ -7,6 +7,14 @@ Very much a work in progress and impulsively hacked together.
 Mumbot communicates with the Mumble server using *ZeroC Ice*.
 `apt-get install python-zeroc-ice` or `pip install zeroc-ice`
 
+## Installation
+In order for mumbot to work, the `Murmur.ice` slice of your installed Mumble server needs to be translated to Python using `slice2py`. Simply run `slice2py /path/to/Murmur.ice` inside the directory containing `mumbot.py`. You may need to provide extra options for slice2py to find the files included from Murmur.ice.
+
+For Debian with the `mumble-server` and `python-zeroc-ice` packages installed, run:
+```sh
+$ slice2py -I/usr/share/Ice/slice /usr/share/slice/Murmur.ice
+```
+
 ## Plugins
 Selection and loading of plugins is currently hardcoded in `mumbot.py`.
 
