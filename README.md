@@ -15,6 +15,16 @@ For Debian with the `mumble-server` and `python-zeroc-ice` packages installed, r
 $ slice2py -I/usr/share/Ice/slice /usr/share/slice/Murmur.ice
 ```
 
+The bot can then be started using
+```sh
+$ python mumbot.py
+```
+or executed in the background using
+```sh
+$ python mumbot.py -d
+```
+The host and port used for connecting with the Mumble server are currently hardcoded in `mumbot.py`.
+
 ## Plugins
 Selection and loading of plugins is currently hardcoded in `mumbot.py`.
 
