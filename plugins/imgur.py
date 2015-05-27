@@ -36,12 +36,12 @@ class ImgurPlugin(Plugin):
                 i = re.match('^/(?P<item>[^/]+)', res.path).group('item')
                 if i is not None:
                     if i == 'a':
-                        i = re.match('^/a/(?P<albumid>.+)$', res.path).group('albumid')
+                        i = re.match('^/a/(?P<albumid>[^/]+)', res.path).group('albumid')
                         if i is not None and i not in ids:
                             ids.add(i)
                             self.process_album_id(message, i, uri)
                     elif i == 'gallery':
-                        i = re.match('^/gallery/(?P<galleryid>.+)$', res.path).group('galleryid')
+                        i = re.match('^/gallery/(?P<galleryid>[^/]+)', res.path).group('galleryid')
                         if i is not None and i not in ids:
                             ids.add(i)
                             self.process_gallery_id(message, i, uri)
