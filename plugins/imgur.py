@@ -1,6 +1,7 @@
 import re
 import urlparse
 from imgurpython import ImgurClient
+from imgurpython.helpers.error import ImgurClientError
 
 from Plugin import Plugin
 
@@ -19,84 +20,140 @@ class ImgurPlugin(Plugin):
         self.adapter = adapter
         self.client = ImgurClient(client_id, client_secret)
 
-    def get_imgur_ids(self, message):
-        images = {}
-        albums = set()
-        galleries = set()
+    def process(self, message):
+        ids = set()
 
-        uris = re.findall(self.href_re, message)
+        uris = re.findall(self.href_re, message.text)
         for uri in uris:
             i = None
             res = urlparse.urlparse(uri)
             if res.netloc == 'i.imgur.com':
                 i = re.match('^/(?P<imgid>.+)\.(jpg|png|gifv?)', res.path).group('imgid')
-                images[i] = uri
+                if i not in ids:
+                    ids.add(i)
+                    process_image_id(message, i, uri)
             elif res.netloc == 'imgur.com':
-                i = re.match('^/(?P<entry>[^/]+)', res.path).group('entry')
+                i = re.match('^/(?P<item>[^/]+)', res.path).group('item')
                 if i is not None:
                     if i == 'a':
                         i = re.match('^/a/(?P<albumid>.+)$', res.path).group('albumid')
-                        if i is not None:
-                            albums.add(i)
-                    elif i == 'g':
-                        i = re.match('^/g/(?P<galleryid>.+)$', res.path).group('galleryid')
-                        if i is not None:
-                            galleries.add(i)
+                        if i is not None and i not in ids:
+                            ids.add(i)
+                            self.process_album_id(message, i, uri)
+                    elif i == 'gallery':
+                        i = re.match('^/gallery/(?P<galleryid>.+)$', res.path).group('galleryid')
+                        if i is not None and i not in ids:
+                            ids.add(i)
+                            self.process_gallery_id(message, i, uri)
                     else:
-                        images[i] = uri
-        return {'i': images, 'a': albums, 'g': galleries}
-
-    text_imgur = '<span style="color: #85BF25; font-weight: bold;">Imgur</span>'
-    text_album = text_imgur + ' album'
-    text_img = text_imgur + ' image'
-    text_gallery = text_imgur + ' gallery'
+                        if res.path == '/' + i and i not in ids:
+                            ids.add(i)
+                            self.process_id(message, i, uri)
 
     def sendReply(self, message, text):
         for c in message.channels:
             self.server.sendMessageChannel(c, False, text)
 
-    def image_url(self, img, thumbnail=False):
-        if thumbnail:
-            return 'http://i.imgur.com/{id}m.jpg'.format(id=img.id)
-        elif hasattr(img, 'gifv'):
-            return img.gifv
-        else:
-            return img.link
+    def sendError(self, message, text):
+        self.sendReply(message, '<p>Imgur plugin error:</p><p>' + text + '</p>')
 
-    def process_gallery(self, message, gallery_id):
-        # Not yet implemented.
+    def image_thumbnail_uri(self, img):
+        return 'http://i.imgur.com/{id}m.jpg'.format(id=img.id)
+
+    class NotAGallery(Exception):
         pass
 
-    def process_album(self, message, album_id):
+    class NotAnAlbum(Exception):
+        pass
+
+    def process_id(self, message, i, uri):
+    # There does not seem to be any way to determine whether an ID belongs to
+    # an album or a gallery, other than trial & error
+        try:
+            self.process_gallery_id(message, i, uri)
+        except NotAGallery:
+            try:
+                self.process_album_id(message, i, uri)
+            except NotAnAlbum:
+                self.process_image(message, i, uri)
+        except Exception as err:
+            self.sendError(message, repr(err))
+
+    def process_gallery_id(self, message, gallery_id, uri):
+        try:
+            item = self.client.gallery_item(gallery_id)
+        except ImgurClientError as err:
+            if err.status_code == 404:
+                raise NotAGallery()
+            elif err.status_code == 401 or err.status_code == 403:
+                # Gallery seems to exist, but we have no access.
+                return
+            else:
+                self.sendError(message, repr(err))
+                return
+        except Exception as err:
+            self.sendError(message, repr(err))
+            return
+        if item.is_album:
+            self.process_album(message, item, uri)
+        else:
+            self.process_image(message, item, uri)
+
+    def process_album_id(self, message, album_id, uri):
         try:
             a = self.client.get_album(album_id)
-            if a is not None:
-                text = '<p>{text_album}: <span style="font-weight: bold;">{title}</span></p>'.format(text_album=self.text_album, title=a.title) if a.title else '<p><span style="font-weight: bold;">Untitled</span> {text_album}</p>'.format(text_album=self.text_album)
-                cover = self.client.get_image(a.cover)
-                if cover is not None:
-                    text += '<p><a href="{link}"><img src="{coverthumb}"></a></p>'.format(link=a.link, coverthumb=self.image_url(cover, True))
-            self.sendReply(message, text)
-        except Exception as e:
-            self.sendReply(message, '<p><b>Imgur plugin error</b>:</p><p>' + repr(e) + '</p>')
+        except ImgurClientError as err:
+            if err.status_code == 404:
+                raise NotAnAlbum()
+            elif err.status_code == 401 or err.status_code == 403:
+                # Album seems to exist, but we have no access.
+                return
+            else:
+                self.sendError(message, repr(err))
+                return
+        except Exception as err:
+            self.sendError(message, repr(err))
+            return
+        if a is not None:
+            self.process_album(message, a, uri)
 
-    def process_img(self, message, image_id, uri):
+    def process_image_id(self, message, image_id, uri):
         try:
             img = self.client.get_image(image_id)
-            if img is not None:
-                text = '<p>{text_img}: <span style="font-weight: bold;">{title}</span></p>'.format(text_img=self.text_img, title=img.title) if img.title else '<p><span style="font-weight: bold;">Untitled</span> {text_img}</p>'.format(text_img=self.text_img)
-                text += '<p><a href="{link}"><img src="{thumb}"></a></p>'.format(link=img.link, thumb=self.image_url(img, True))
-                self.sendReply(message, text)
-        except Exception as e:
-            self.sendReply(message, '<p><b>Imgur plugin error</b>:</p><p>' + repr(e) + '</p>')
+        except ImgurClientError as err:
+            if err.status_code == 404:
+                return
+            elif err.status_code == 401 or err.status_code == 403:
+                # Image seems to exist, but we have no access.
+                return
+            else:
+                self.sendError(message, repr(err))
+                return
+        except Exception as err:
+            self.sendError(message, repr(err))
+            return
+        if img is not None:
+            self.process_image(message, img, uri)
+
+    text_imgur = '<span style="color: #85BF25; font-weight: bold;">Imgur</span>'
+
+    def process_album(self, message, album, uri):
+        text = '<p>{imgur} album (with {count} images): <b>{title}</b></p>' if album.title else '<p><b>Untitled</b> {imgur} album with {count} images.'
+        text = text.format(imgur=self.text_imgur, title=album.title, count=len(album.images))
+        if album.cover is not None:
+            try:
+                cover = self.client.get_image(album.cover)
+                if cover is not None:
+                    text += '<p><a href="{uri}"><img src="{thumb}"></a></p>'.format(uri=uri, thumb=self.image_thumbnail_uri(cover))
+            except Exception as err:
+                self.sendError(message, repr(err))
+        self.sendReply(message, text)
+
+    def process_image(self, message, image, uri):
+        text = '<p><a href="{uri}"><img src="{thumb}"></a></p>'.format(uri=uri, thumb=self.image_thumbnail_uri(image))
+        if image.title:
+            text = '<p>{imgur} image: <b>{title}</b></p>'.format(imgur=self.text_imgur, title=image.title) + text
+        self.sendReply(message, text)
 
     def userTextMessage(self, user, message, current=None):
-        ids = self.get_imgur_ids(message.text)
-        if len(ids['i']) > 0:
-            for imgid in ids['i']:
-                self.process_img(message, imgid, ids['i'][imgid])
-        if len(ids['g']) > 0:
-            for gallery_id in ids['g']:
-                self.process_gallery(message, gallery_id)
-        if len(ids['a']) > 0:
-            for album_id in ids['a']:
-                self.process_album(message, album_id)
+        self.process(message)
