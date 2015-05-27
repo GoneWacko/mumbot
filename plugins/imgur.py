@@ -31,7 +31,7 @@ class ImgurPlugin(Plugin):
                 i = re.match('^/(?P<imgid>.+)\.(jpg|png|gifv?)', res.path).group('imgid')
                 if i not in ids:
                     ids.add(i)
-                    process_image_id(message, i, uri)
+                    self.process_image_id(message, i, uri)
             elif res.netloc == 'imgur.com':
                 i = re.match('^/(?P<item>[^/]+)', res.path).group('item')
                 if i is not None:
@@ -71,11 +71,11 @@ class ImgurPlugin(Plugin):
     # an album or a gallery, other than trial & error
         try:
             self.process_gallery_id(message, i, uri)
-        except NotAGallery:
+        except ImgurPlugin.NotAGallery:
             try:
                 self.process_album_id(message, i, uri)
-            except NotAnAlbum:
-                self.process_image(message, i, uri)
+            except ImgurPlugin.NotAnAlbum:
+                self.process_image_id(message, i, uri)
         except Exception as err:
             self.sendError(message, repr(err))
 
@@ -84,7 +84,7 @@ class ImgurPlugin(Plugin):
             item = self.client.gallery_item(gallery_id)
         except ImgurClientError as err:
             if err.status_code == 404:
-                raise NotAGallery()
+                raise ImgurPlugin.NotAGallery()
             elif err.status_code == 401 or err.status_code == 403:
                 # Gallery seems to exist, but we have no access.
                 return
@@ -104,7 +104,7 @@ class ImgurPlugin(Plugin):
             a = self.client.get_album(album_id)
         except ImgurClientError as err:
             if err.status_code == 404:
-                raise NotAnAlbum()
+                raise ImgurPlugin.NotAnAlbum()
             elif err.status_code == 401 or err.status_code == 403:
                 # Album seems to exist, but we have no access.
                 return
