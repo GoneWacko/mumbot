@@ -74,10 +74,13 @@ if __name__ == "__main__":
     from plugins.twitch import TwitchPlugin
     from plugins.topic import TopicPlugin
     from plugins.channellink import ChannelLinkPlugin
+    from plugins.imgur import ImgurPlugin
+
     plugins.append(YouTubePlugin(server, adapter))
     plugins.append(TwitchPlugin(server, adapter))
     plugins.append(TopicPlugin(server, adapter))
     plugins.append(ChannelLinkPlugin(server, adapter))
+    plugins.append(ImgurPlugin(server, adapter))
 
     # And now we wait.
     import time
