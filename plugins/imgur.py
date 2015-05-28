@@ -123,10 +123,11 @@ class ImgurPlugin(Plugin):
         self.process_gallery(message, item, uri)
 
     def process_subreddit(self, message, subreddit, sort, uri):
-        if sort == 'new':
-            sort = 'time'
         try:
-            gallery = self.client.subreddit_gallery(subreddit, sort=sort)
+            if sort == 'top':
+                gallery = self.client.subreddit_gallery(subreddit, sort='top', window='month')
+            else:
+                gallery = self.client.subreddit_gallery(subreddit, sort='time')
         except ImgurClientError as err:
             if err.status_code == 404:
                 # Subreddit doesn't seem to exist.
