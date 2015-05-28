@@ -178,9 +178,8 @@ class ImgurPlugin(Plugin):
         if img is not None:
             self.process_image(message, img, uri)
 
-
     def process_gallery(self, message, gallery, uri):
-        if item.is_album:
+        if gallery.is_album:
             self.process_album(message, gallery, uri)
         else:
             self.process_image(message, gallery, uri)
