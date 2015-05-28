@@ -210,7 +210,7 @@ class ImgurPlugin(Plugin):
         self.sendReply(message, text)
 
     def process_subreddit_list(self, message, subreddit, sort, gallery, uri):
-        sort = 'Newest' if sort == 'time' else 'Most popular'
+        sort = 'Most popular' if sort == 'top' else 'Newest'
         text = '<p>{sort} subreddit <b>/r/{subreddit}</b> images on {imgur}:</p>'.format(sort=sort, subreddit=subreddit, imgur=self.text_imgur)
         count = max(4, len(gallery))
         text += '<p>'
