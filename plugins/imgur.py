@@ -22,6 +22,7 @@ class ImgurPlugin(Plugin):
 
     def process(self, message):
         ids = set()
+        subreddits = set()
 
         uris = re.findall(self.href_re, message.text)
         for uri in uris:
@@ -45,6 +46,17 @@ class ImgurPlugin(Plugin):
                         if i is not None and i not in ids:
                             ids.add(i)
                             self.process_gallery_id(message, i, uri)
+                    elif i == 'r':
+                        m = re.match('^/r/(?P<subreddit>[^/]+)(/(?P<galleryid>[^/]+)?)?', res.path)
+                        if m is not None:
+                            subreddit = m.group('subreddit')
+                            i = m.group('galleryid')
+                            if i not in [None, 'new', 'top']:
+                                ids.add(i)
+                                self.process_subreddit_gallery_id(message, subreddit, i, uri)
+                            else:
+                                subreddits.add(subreddit)
+                                self.process_subreddit(message, subreddit, i, uri)
                     else:
                         if res.path == '/' + i and i not in ids:
                             ids.add(i)
@@ -56,9 +68,6 @@ class ImgurPlugin(Plugin):
 
     def sendError(self, message, text):
         self.sendReply(message, '<p>Imgur plugin error:</p><p>' + text + '</p>')
-
-    def image_thumbnail_uri(self, img):
-        return 'http://i.imgur.com/{id}m.jpg'.format(id=img.id)
 
     class NotAGallery(Exception):
         pass
@@ -94,10 +103,44 @@ class ImgurPlugin(Plugin):
         except Exception as err:
             self.sendError(message, repr(err))
             return
-        if item.is_album:
-            self.process_album(message, item, uri)
-        else:
-            self.process_image(message, item, uri)
+        self.process_gallery(message, item, uri)
+
+    def process_subreddit_gallery_id(self, message, subreddit, gallery_id, uri):
+        try:
+            item = self.client.subreddit_image(subreddit, gallery_id)
+        except ImgurClientError as err:
+            if err.status_code == 404:
+                raise ImgurPlugin.NotAGallery()
+            elif err.status_code == 401 or err.status_code == 403:
+                # Gallery seems to exist, but we have no access.
+                return
+            else:
+                self.sendError(message, repr(err))
+                return
+        except Exception as err:
+            self.sendError(message, repr(err))
+            return
+        self.process_gallery(message, item, uri)
+
+    def process_subreddit(self, message, subreddit, sort, uri):
+        if sort == 'new':
+            sort = 'time'
+        try:
+            gallery = self.client.subreddit_gallery(subreddit, sort=sort)
+        except ImgurClientError as err:
+            if err.status_code == 404:
+                # Subreddit doesn't seem to exist.
+                return
+            elif err.status_code == 401 or err.status_code == 403:
+                # Gallery seems to exist, but we have no access.
+                return
+            else:
+                self.sendError(message, repr(err))
+                return
+        except Exception as err:
+            self.sendError(message, repr(err))
+            return
+        self.process_subreddit_list(message, subreddit, sort, gallery, uri)
 
     def process_album_id(self, message, album_id, uri):
         try:
@@ -135,7 +178,18 @@ class ImgurPlugin(Plugin):
         if img is not None:
             self.process_image(message, img, uri)
 
+
+    def process_gallery(self, message, gallery, uri):
+        if item.is_album:
+            self.process_album(message, gallery, uri)
+        else:
+            self.process_image(message, gallery, uri)
+
     text_imgur = '<span style="color: #85BF25; font-weight: bold;">Imgur</span>'
+
+    def process_image_thumbnail(self, image, uri, size='m'):
+        thumb = 'http://i.imgur.com/{id}{size}.jpg'.format(id=image.id, size=size)
+        return '<a href="{uri}"><img src="{thumb}"></a>'.format(uri=uri, thumb=thumb)
 
     def process_album(self, message, album, uri):
         text = '<p>{imgur} album (with {count} images): <b>{title}</b></p>' if album.title else '<p><b>Untitled</b> {imgur} album with {count} images.'
@@ -144,15 +198,25 @@ class ImgurPlugin(Plugin):
             try:
                 cover = self.client.get_image(album.cover)
                 if cover is not None:
-                    text += '<p><a href="{uri}"><img src="{thumb}"></a></p>'.format(uri=uri, thumb=self.image_thumbnail_uri(cover))
+                    text += '<p>' + self.process_image_thumbnail(cover, uri) + '</p>'
             except Exception as err:
                 self.sendError(message, repr(err))
         self.sendReply(message, text)
 
     def process_image(self, message, image, uri):
-        text = '<p><a href="{uri}"><img src="{thumb}"></a></p>'.format(uri=uri, thumb=self.image_thumbnail_uri(image))
+        text = '<p>' + self.process_image_thumbnail(image, uri) + '</p>'
         if image.title:
             text = '<p>{imgur} image: <b>{title}</b></p>'.format(imgur=self.text_imgur, title=image.title) + text
+        self.sendReply(message, text)
+
+    def process_subreddit_list(self, message, subreddit, sort, gallery, uri):
+        sort = 'Newest' if sort == 'time' else 'Most popular'
+        text = '<p>{sort} subreddit <b>/r/{subreddit}</b> images on {imgur}:</p>'.format(sort=sort, subreddit=subreddit, imgur=self.text_imgur)
+        count = max(4, len(gallery))
+        text += '<p>'
+        for i in xrange(min(4, len(gallery))):
+            text += self.process_image_thumbnail(gallery[i], uri, 's') + ' '
+        text += '</p>'
         self.sendReply(message, text)
 
     def userTextMessage(self, user, message, current=None):
